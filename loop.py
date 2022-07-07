@@ -7,7 +7,7 @@ import numpy as np
 
 controller = gpiozero.OutputDevice(18)
 polling_interval = 1 # intervals between polling
-projected_duration = 10 # predict for the next 10s
+projecting_duration = 10 # predict for the next 10s
 fan_start_temp = 70 # temperature to start fan
 fan_state = 0
 fan_state_resilient = 7
@@ -37,31 +37,32 @@ def control_fan_state(state: int):
         print("set fan off")
         set_fan_off()
 
-def project_max_temp(y: List[float], projected_duration: float) -> float:
+def project(y: List[float], projecting_duration: float) -> float:
     n = len(y)
     x = np.arange(n) - (n - 1)
     p = np.poly1d(np.polyfit(x=x, y=y, deg=1))
-    m = math.ceil(projected_duration)
-    x_pr = np.arange(m+1)
+    x_pr = np.array([0, projecting_duration])
     y_pr = p(x_pr)
-    return max(*y, *y_pr)    
+    y_pr = np.round(y_pr, 1)
+    return [*y_pr]
 
 
 if __name__ == "__main__":
-    readings = []
+    temp_list = []
     control_fan_state(fan_state)
     while True:
         temp = poll_cpu_temperature()
         print(f"current temp: {temp}")
 
-        if len(readings) < max_num_readings:
-            readings = readings + [temp,]
+        if len(temp_list) < max_num_readings:
+            temp_list = temp_list + [temp,]
         else:
-            readings = readings[-max_num_readings:] + [temp,]
+            temp_list = temp_list[-max_num_readings:] + [temp,]
         
-        if len(readings) >= max_num_readings:
-            projected_max_temp = project_max_temp(y=readings, projected_duration=projected_duration)
-            print(f"projected max temp in the next {projected_duration} seconds: {projected_max_temp}")
+        if len(temp_list) >= max_num_readings:
+            projected_temp_list = project(y=temp_list, projecting_duration=projecting_duration)
+            print(f"projection: {temp_list}:{projected_temp_list}")
+            projected_max_temp = max(*temp_list, *projected_temp_list)
             if projected_max_temp >= fan_start_temp:
                 fan_state = next_fan_state(fan_state, +1)
             else:
