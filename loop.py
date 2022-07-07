@@ -34,7 +34,6 @@ def project(y: List[float], projecting_duration: float) -> float:
     p = np.poly1d(np.polyfit(x=x, y=y, deg=1))
     x_pr = np.array([0, projecting_duration])
     y_pr = p(x_pr)
-    y_pr = np.round(y_pr, 1)
     return [*y_pr]
 
 if __name__ == "__main__":
