@@ -8,34 +8,25 @@ import numpy as np
 controller = gpiozero.OutputDevice(18)
 polling_interval = 1 # intervals between polling
 projecting_duration = 10 # predict for the next 10s
-fan_start_temp = 70 # temperature to start fan
+threshold_temp = 70 # temperature to start fan
 fan_state = 0
-fan_state_resilient = 7
+fan_state_resilient = 4
 max_num_readings = 5
 
 def poll_cpu_temperature() -> float:
     return gpiozero.CPUTemperature().temperature
 
-
-def next_fan_state(state: int, control: int) -> int:
+def control_fan_state(state: int, control: int) -> int:
     next_state = state + control
     next_state = min(+fan_state_resilient, next_state)
     next_state = max(-fan_state_resilient, next_state)
-    return next_state
-
-def set_fan_off():
-    controller.on()
-
-def set_fan_on():
-    controller.off()
-
-def control_fan_state(state: int):
-    if state > 0:
-        print("set fan on")
-        set_fan_on()
+    if next_state > 0:
+        print("fan on")
+        controller.off() # pnp transistor
     else:
-        print("set fan off")
-        set_fan_off()
+        print("fan off")
+        controller.on() # pnp transistor
+    return next_state
 
 def project(y: List[float], projecting_duration: float) -> float:
     n = len(y)
@@ -46,13 +37,11 @@ def project(y: List[float], projecting_duration: float) -> float:
     y_pr = np.round(y_pr, 1)
     return [*y_pr]
 
-
 if __name__ == "__main__":
     temp_list = []
-    control_fan_state(fan_state)
+    fan_state = control_fan_state(fan_state, 0)
     while True:
         temp = poll_cpu_temperature()
-        print(f"current temp: {temp}")
 
         if len(temp_list) < max_num_readings:
             temp_list = temp_list + [temp,]
@@ -61,12 +50,10 @@ if __name__ == "__main__":
         
         if len(temp_list) >= max_num_readings:
             projected_temp_list = project(y=temp_list, projecting_duration=projecting_duration)
-            print(f"projection: {temp_list}:{projected_temp_list}")
+            print(f"temp: {temp_list}: projection {projected_temp_list}")
             projected_max_temp = max(*temp_list, *projected_temp_list)
-            if projected_max_temp >= fan_start_temp:
-                fan_state = next_fan_state(fan_state, +1)
-            else:
-                fan_state = next_fan_state(fan_state, -1)
-            control_fan_state(fan_state)
+
+            control = 1 if projected_max_temp >= threshold_temp else -1
+            fan_state = control_fan_state(fan_state, control)
         
         time.sleep(polling_interval)
