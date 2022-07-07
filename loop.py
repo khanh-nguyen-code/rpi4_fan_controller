@@ -4,7 +4,6 @@ import time
 import math
 import gpiozero
 import numpy as np
-from sklearn.linear_model import LinearRegression
 
 controller = gpiozero.OutputDevice(18)
 polling_interval = 1 # intervals between polling
@@ -39,14 +38,13 @@ def control_fan_state(state: int):
         set_fan_off()
 
 def project_max_temp(y: List[float], projected_duration: float) -> float:
-    lr = LinearRegression()
     n = len(y)
-    X = np.arange(n).reshape((n, 1)) - (n - 1)
-    lr.fit(X, y)
+    x = np.arange(n) - (n - 1)
+    p = np.poly1d(np.polyfit(x=x, y=y, deg=1))
     m = math.ceil(projected_duration)
-    X_pr = np.arange(m+1).reshape((m+1, 1))
-    y_pr = lr.predict(X_pr)
-    return max(*y, *y_pr)
+    x_pr = np.arange(m+1)
+    y_pr = p(x_pr)
+    return max(*y, *y_pr)    
 
 
 if __name__ == "__main__":
@@ -61,7 +59,7 @@ if __name__ == "__main__":
         else:
             readings = readings[-max_num_readings:] + [temp,]
         
-        if len(readings) >= 1:
+        if len(readings) >= max_num_readings:
             projected_max_temp = project_max_temp(y=readings, projected_duration=projected_duration)
             print(f"projected max temp in the next {projected_duration} seconds: {projected_max_temp}")
             if projected_max_temp >= fan_start_temp:
